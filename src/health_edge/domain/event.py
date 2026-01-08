@@ -66,7 +66,7 @@ class Event:
     def to_dict(self) -> Dict[str, Any]: # convert events to dict
         return { # returns JSON
             "event_id": self.event_id, 
-            "type": self.type, # convert Enum to string
+            "type": self.type.value, # convert Enum to string
             "timestamp": self.timestamp,
             "priority": self.priority,
             "payload": self.payload,
