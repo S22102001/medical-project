@@ -1,0 +1,205 @@
+# Smart Healthcare Monitoring Platform  
+## Edge Module – Local Data Cache & Offline Buffer
+
+This repository contains the **Edge-side implementation skeleton** of the  
+**Local Data Cache & Offline Buffer** module, as defined in the Low-Level Design (LLD).
+
+The goal of this module is to guarantee **zero data loss**, **offline operation**, and  
+**reliable FIFO synchronization** of medical events between the Edge device and the Cloud backend.
+
+This README describes the **project structure and responsibilities of each file**,  
+not the full implementation.
+
+---
+
+## Project Structure:
+
+src/
+└── health_edge/
+├── init.py
+├── domain/
+│ ├── init.py
+│ └── event.py
+├── storage/
+│ ├── init.py
+│ ├── storage_handler.py
+│ ├── file_storage.py
+│ └── crypto.py
+├── buffer/
+│ ├── init.py
+│ ├── buffer_manager.py
+│ └── state_machine.py
+├── network/
+│ ├── init.py
+│ ├── network_client.py
+│ └── mock_network_client.py
+└── utils/
+├── init.py
+└── hashing.py
+
+
+---
+
+## Package Overview
+
+### `health_edge/`
+Root Python package for the Edge module.  
+Contains all logic related to local buffering, offline handling, and synchronization.
+
+---
+
+## Domain Layer
+
+### `domain/event.py`
+Defines the **Event data model** used throughout the module.
+
+Responsibilities:
+- Represent a single medical event (measurement or alert)
+- Enforce a consistent event structure:
+  - `event_id` (UUID)
+  - `type` (MEASUREMENT / ALERT)
+  - `timestamp` (ISO 8601 UTC)
+  - `priority`
+  - `payload`
+  - `hash` (SHA-256 checksum)
+
+This file ensures that all system components operate on a **strongly-defined event object**
+instead of loosely-typed dictionaries.
+
+---
+
+## Storage Layer
+
+### `storage/storage_handler.py`
+Defines the **StorageHandler interface (or abstract base class)**.
+
+Responsibilities:
+- Declare the contract for persistent local storage
+- Expose methods such as:
+  - `append(event)`
+  - `read_next()`
+  - `mark_acked()`
+  - `has_pending()`
+  - `evict_low_priority()`
+
+This file contains **no concrete storage logic**, only method definitions.
+
+---
+
+### `storage/file_storage.py`
+Concrete implementation of `StorageHandler` using local files.
+
+Responsibilities:
+- Append-only encrypted FIFO storage
+- Cursor-based ACK deletion (no physical deletion)
+- Atomic cursor updates (write → rename)
+- Crash-safe recovery after restart
+- Priority-based eviction under storage pressure
+
+This file implements the persistence behavior defined in the LLD.
+
+---
+
+### `storage/crypto.py`
+Handles **encryption and decryption** of events stored on disk.
+
+Responsibilities:
+- AES-256 encryption for data at rest
+- Decryption for FIFO reads
+- Key usage via secure runtime injection (no hardcoded secrets)
+
+This file isolates all cryptographic logic from business logic.
+
+---
+
+## Buffer / Control Layer
+
+### `buffer/state_machine.py`
+Defines the **logical state machine** of the module.
+
+Responsibilities:
+- Define valid states:
+  - `ONLINE`
+  - `OFFLINE`
+  - `SYNC`
+- Validate legal state transitions
+- Prevent illegal or unsafe transitions
+
+This file represents the formal behavioral model described in the LLD.
+
+---
+
+### `buffer/buffer_manager.py`
+Core orchestration component of the module.
+
+Responsibilities:
+- Accept incoming events (`ingest`)
+- Decide between immediate send vs. local persistence
+- Manage ONLINE / OFFLINE / SYNC transitions
+- Control the background synchronization process
+- Guarantee FIFO ordering and ACK-based deletion
+- Ensure only **one active sync process** at a time
+
+This is the central coordination unit of the Edge buffering logic.
+
+---
+
+## Network Layer
+
+### `network/network_client.py`
+Defines the **network client interface**.
+
+Responsibilities:
+- Abstract event transmission to the backend
+- Return ACK / failure responses
+- Act as an external dependency (not part of buffering logic)
+
+This abstraction allows the module to be tested without a real backend.
+
+---
+
+### `network/mock_network_client.py`
+Mock implementation of `NetworkClient`.
+
+Responsibilities:
+- Simulate network success and failure scenarios
+- Enable offline / recovery testing
+- Support demonstration and unit testing
+
+Used for validation and demo purposes only.
+
+---
+
+## Utilities
+
+### `utils/hashing.py`
+Provides hashing utilities.
+
+Responsibilities:
+- Generate SHA-256 checksums for events
+- Support integrity validation
+- Keep cryptographic helpers out of core logic
+
+---
+
+## Notes
+
+- Files such as `buffer.jsonl.enc`, `cursor.txt`, and `cursor.tmp`
+  are **runtime artifacts** and are **not created manually**.
+- Cache files, virtual environments, and compiled artifacts
+  should not be committed to version control.
+- This structure follows the approved Low-Level Design
+  and supports unit testing, recovery, and offline simulation.
+
+---
+
+## Purpose of This Implementation
+
+This module demonstrates:
+- Offline-first design
+- Reliable persistence under failure
+- Clear separation of concerns
+- Direct traceability to SRS and LLD requirements
+
+The implementation focuses on **correct architecture and behavior**,  
+not on full production deployment.
