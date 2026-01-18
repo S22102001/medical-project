@@ -1,8 +1,9 @@
 # Smart Healthcare Monitoring Platform  
 ## Edge Module – Local Data Cache & Offline Buffer
 
-This repository contains the **Edge-side implementation skeleton** of the  
+This repository contains the **Edge-side partial implementation skeleton** of the  
 **Local Data Cache & Offline Buffer** module, as defined in the Low-Level Design (LLD).
+
 
 The goal of this module is to guarantee **zero data loss**, **offline operation**, and  
 **reliable FIFO synchronization** of medical events between the Edge device and the Cloud backend.
@@ -12,30 +13,33 @@ not the full implementation.
 
 ---
 
-## Project Structure:
+## Project Structure
 
 src/
 └── health_edge/
-├── init.py
-├── domain/
-│ ├── init.py
-│ └── event.py
-├── storage/
-│ ├── init.py
-│ ├── storage_handler.py
-│ ├── file_storage.py
-│ └── crypto.py
-├── buffer/
-│ ├── init.py
-│ ├── buffer_manager.py
-│ └── state_machine.py
-├── network/
-│ ├── init.py
-│ ├── network_client.py
-│ └── mock_network_client.py
-└── utils/
-├── init.py
-└── hashing.py
+    ├── __init__.py
+    ├── domain/
+    │   ├── __init__.py
+    │   └── event.py
+    ├── storage/
+    │   ├── __init__.py
+    │   ├── storage_handler.py
+    │   ├── file_storage.py        # planned
+    │   └── crypto.py              # planned
+    ├── buffer/
+    │   ├── __init__.py
+    │   ├── buffer_manager.py      # planned
+    │   └── state_machine.py       # planned
+    ├── network/
+    │   ├── __init__.py
+    │   ├── network_client.py      # planned
+    │   └── mock_network_client.py # planned
+    └── utils/
+        ├── __init__.py
+        └── hashing.py
+
+tests/
+├── test_event_basic.py
 
 
 ---
@@ -203,3 +207,13 @@ This module demonstrates:
 
 The implementation focuses on **correct architecture and behavior**,  
 not on full production deployment.
+
+## Testing
+
+Basic unit tests are implemented using pytest to validate core behaviors
+defined in the Low-Level Design, such as event integrity, hashing consistency,
+and correct serialization.
+
+To run tests:
+PYTHONPATH=src pytest
+
