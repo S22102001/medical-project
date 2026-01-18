@@ -76,8 +76,8 @@ class Event:
     def compute_hash(self)-> str: # calculates sha256 for hash
         data_without_hash: Mapping[str, Any] ={
             "event_id": self.event_id,
-            "type": self.type,
-            "timestamp": self.type,
+            "type": self.type.value,
+            "timestamp": self.timestamp,
             "priority": self.priority,
             "payload": self.payload,
         }
@@ -112,9 +112,9 @@ class Event:
         return cls(
             event_id=str(data["event_id"]),
             type=EventType(str(data["type"])),
-            timestamp=str(data["timestapm"]),
-            priority= int(data["priority"]),
-            payload= dict(data.get("payload",{})),
-            hash= str(data.get("hash", "")), 
+            timestamp=str(data["timestamp"]),
+            priority=int(data["priority"]),
+            payload=dict(data.get("payload", {})),
+            hash=str(data.get("hash", "")),
         )
     

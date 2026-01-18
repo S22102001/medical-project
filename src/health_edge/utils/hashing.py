@@ -17,14 +17,14 @@ def canonical_json_bytes(data: Mapping[str, Any]) -> bytes:
     """
     Converts a Python mapping into a canonical JSON byte representation.
     """
-    jaon_str= json.dumps(
+    json_str= json.dumps(
         data,
         sort_keys=True, # Stable key ordering
         separators=(",", ":"), # No extra whitespace
         ensure_ascii=False, # Consistent Unicode handling
     )
 
-    return jaon_str.encode("utf-8")
+    return json_str.encode("utf-8")
 
 def sha256_hex_from_bytes(raw: bytes) -> str:
     # creates SHA-256 and returns str hex
