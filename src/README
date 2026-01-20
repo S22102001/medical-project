@@ -37,9 +37,10 @@ src/
     └── utils/
         ├── __init__.py
         └── hashing.py
-
 tests/
 ├── test_event_basic.py
+└── test_storage_contract.py
+
 
 
 ---
@@ -210,10 +211,15 @@ not on full production deployment.
 
 ## Testing
 
-Basic unit tests are implemented using pytest to validate core behaviors
+Basic unit and contract tests are implemented using pytest to validate core behaviors
 defined in the Low-Level Design, such as event integrity, hashing consistency,
 and correct serialization.
 
+
 To run tests:
 PYTHONPATH=src pytest
+
+Run only storage contract tests:
+PYTHONPATH=src pytest -v tests/test_storage_contract.py
+
 

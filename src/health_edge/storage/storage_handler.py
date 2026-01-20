@@ -31,7 +31,7 @@ class StorageHandler(ABC):
     # expectations:
     # 1. durable: after this returns, the event should survive a crash.
     # 2. append-only: preserves order of arrival.
-    raise NotImplementedError()
+        raise NotImplementedError()
 
     @abstractmethod
      # return the next pending event (FIFO) without removing it.
@@ -66,7 +66,7 @@ class StorageHandler(ABC):
     
     @abstractmethod
     # return best effort storage statistics
-    get_stats(self) -> StorageStats:
+    def get_stats(self) -> StorageStats:
         raise NotImplementedError()
 
     @abstractmethod
