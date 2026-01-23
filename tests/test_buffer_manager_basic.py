@@ -3,6 +3,7 @@ import pytest
 from health_edge.buffer.buffer_manager import BufferManager, SyncAlradyRunning
 from health_edge.buffer.state_machine import BufferState
 from health_edge.domain.event import Event, EventType
+from health_edge.network.network_client import SendResult
 from tests.fake_storage import FakeStorage
 
 class FakeNeworkClient:
@@ -13,11 +14,11 @@ class FakeNeworkClient:
         self.should_succeed = should_succeed
         self.sent_ids: list[str] = []
     
-    def send_event(self, event: Event)-> bool:
+    def send_event(self, event: Event):
         if self.should_succeed:
             self.sent_ids.append(event.event_id)
-            return True
-        return False
+            return SendResult(acked= True, status_code=200)
+        return SendResult(acked=False, status_code=503,error="offline")
     
 def create_event(v: int) -> Event:
     return Event.create(

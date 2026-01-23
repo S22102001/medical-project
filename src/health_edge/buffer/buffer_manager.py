@@ -6,7 +6,7 @@ from typing import Optional
 from health_edge.domain.event import Event
 from health_edge.storage.storage_handler import StorageHandler
 from health_edge.buffer.state_machine import StateMachine, BufferState
-from health_edge.network.network_client import NetworkClient
+from health_edge.network.network_client import NetworkClient, SendResult
 
 class SyncAlradyRunning(RuntimeError):
     # raised when sync is requested whilee a sync is already in progress
@@ -27,7 +27,7 @@ class BufferManager:
         # ONLINE -> try send immediatly
         if self.state_machine.state == BufferState.ONLINE:
             # attempt network send first
-            if self.client.send_event(event):
+            if self._is_acked(self.client.send_event(event)):
                 return True
         
             # network failed -> OFFINE
@@ -71,7 +71,7 @@ class BufferManager:
                 break
 
             # try send
-            if self.client.send_event(next_event):
+            if self._is_acked(self.client.send_event(next_event)):
                 self.storage.mark_acked(next_event.event_id)
                 acked += 1
                 continue
@@ -91,3 +91,11 @@ class BufferManager:
         # sync interrupted by network failure, go back to OFFLINE
         self._sync_in_progress= False
         self.state_machine.transition_to(BufferState.OFFLINE)
+
+    def _is_acked(self, result) -> bool:
+        # supports both bool and SendResult
+        if isinstance(result,bool):
+            return result
+        
+        # support SendResult / objects that expose ".acked"
+        return bool(getattr(result,"acked", False)) 
