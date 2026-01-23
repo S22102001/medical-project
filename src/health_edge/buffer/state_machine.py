@@ -7,7 +7,7 @@ from typing import ClassVar
 
 class InvalidTransition(Exception):
 # רaised when a state transition is not allowed
-
+    pass
 
 class BufferState(str, Enum):
     ONLINE = "ONLINE"
