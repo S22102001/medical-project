@@ -20,8 +20,12 @@ from health_edge.domain.event import Event
 class StorageStats:
     panding_count: int # number of pending events
     approx_bytes: int # best effort estimate of how many bytes are stored for panding events
-    disk_used_ratio: Optional[float] = None # optional best effort of disk usage ratio
+    disk_used_ratio: Optional[float] = None  # optional best effort of disk usage ratio
 
+    @property
+    def pending_count(self) -> int:
+        return self.panding_count
+    
 # defines WHAT the local persistent buffer must support
 class StorageHandler(ABC):
 
