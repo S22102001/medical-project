@@ -1,225 +1,256 @@
-# Smart Healthcare Monitoring Platform  
+# Smart Healthcare Monitoring Platform
+
 ## Edge Module – Local Data Cache & Offline Buffer
 
-This repository contains the **Edge-side partial implementation skeleton** of the  
-**Local Data Cache & Offline Buffer** module, as defined in the Low-Level Design (LLD).
+This repository contains the full Edge-side implementation of the
+Local Data Cache & Offline Buffer module, developed according to the approved Low-Level Design (LLD) and implemented using Test-Driven Development (TDD).
 
+The module guarantees:
 
-The goal of this module is to guarantee **zero data loss**, **offline operation**, and  
-**reliable FIFO synchronization** of medical events between the Edge device and the Cloud backend.
+- Zero data loss
+- Offline operation
+- Crash-safe recovery
+- Encrypted storage at rest
+- Reliable FIFO synchronization of medical events between Edge and Cloud
 
-This README describes the **project structure and responsibilities of each file**,  
-not the full implementation.
-
----
+This project represents a complete logical backend system, including storage, buffering, synchronization, fault tolerance, encryption, and a runnable demo.
 
 ## Project Structure
-
 src/
 └── health_edge/
-    ├── __init__.py
     ├── domain/
-    │   ├── __init__.py
     │   └── event.py
     ├── storage/
-    │   ├── __init__.py
     │   ├── storage_handler.py
-    │   ├── file_storage.py        # planned
-    │   └── crypto.py              # planned
+    │   ├── file_storage.py
+    │   └── crypto.py
     ├── buffer/
-    │   ├── __init__.py
-    │   ├── buffer_manager.py      # planned
-    │   └── state_machine.py       # planned
+    │   ├── buffer_manager.py
+    │   └── state_machine.py
     ├── network/
-    │   ├── __init__.py
-    │   ├── network_client.py      # planned
-    │   └── mock_network_client.py # planned
+    │   ├── network_client.py
+    │   └── mock_network_client.py
     └── utils/
-        ├── __init__.py
         └── hashing.py
+
+scripts/
+└── demo_cli.py
+
 tests/
 ├── test_event_basic.py
-└── test_storage_contract.py
+├── test_file_storage_basic.py
+├── test_storage_contract.py
+├── test_buffer_manager_basic.py
+├── test_state_machine_basic.py
+└── test_storage_ll_d_requirements.py
 
+## Architecture Overview
+The module follows a layered architecture:
 
-
----
-
-## Package Overview
-
-### `health_edge/`
-Root Python package for the Edge module.  
-Contains all logic related to local buffering, offline handling, and synchronization.
-
----
+| Layer              | Responsibility                     |
+| ------------------ | ---------------------------------- |
+| **Domain**         | Strong event model & integrity     |
+| **Storage**        | Durable encrypted FIFO storage     |
+| **Buffer Control** | Offline handling & synchronization |
+| **Network**        | Abstract backend communication     |
+| **Demo Layer**     | CLI for runtime demonstration      |
 
 ## Domain Layer
 
-### `domain/event.py`
-Defines the **Event data model** used throughout the module.
+### domain/event.py
 
-Responsibilities:
-- Represent a single medical event (measurement or alert)
-- Enforce a consistent event structure:
-  - `event_id` (UUID)
-  - `type` (MEASUREMENT / ALERT)
-  - `timestamp` (ISO 8601 UTC)
-  - `priority`
-  - `payload`
-  - `hash` (SHA-256 checksum)
+Defines the Event object used system-wide.
 
-This file ensures that all system components operate on a **strongly-defined event object**
-instead of loosely-typed dictionaries.
+Each event contains:
 
----
+- UUID
+- Event type
+- UTC timestamp
+- Priority
+- Payload
+- SHA-256 hash
+Ensures integrity and deterministic serialization.
 
 ## Storage Layer
 
-### `storage/storage_handler.py`
-Defines the **StorageHandler interface (or abstract base class)**.
+### storage/file_storage.py
 
-Responsibilities:
-- Declare the contract for persistent local storage
-- Expose methods such as:
-  - `append(event)`
-  - `read_next()`
-  - `mark_acked()`
-  - `has_pending()`
-  - `evict_low_priority()`
+Concrete implementation of the local persistent buffer.
 
-This file contains **no concrete storage logic**, only method definitions.
+Features:
 
----
-
-### `storage/file_storage.py`
-Concrete implementation of `StorageHandler` using local files.
-
-Responsibilities:
-- Append-only encrypted FIFO storage
-- Cursor-based ACK deletion (no physical deletion)
-- Atomic cursor updates (write → rename)
-- Crash-safe recovery after restart
+- Append-only FIFO file storage
+- Cursor-based ACK (no physical deletion)
+- Crash-safe cursor updates
+- Corrupted-record quarantine
 - Priority-based eviction under storage pressure
+- Optional AES-256 encryption at rest
 
-This file implements the persistence behavior defined in the LLD.
+### storage/crypto.py
 
----
+Handles encryption/decryption:
 
-### `storage/crypto.py`
-Handles **encryption and decryption** of events stored on disk.
+- AES-GCM (AES-256)
+- Runtime key injection via environment variable
+- Cryptography isolated from business logic
 
-Responsibilities:
-- AES-256 encryption for data at rest
-- Decryption for FIFO reads
-- Key usage via secure runtime injection (no hardcoded secrets)
+### storage/storage_handler.py
 
-This file isolates all cryptographic logic from business logic.
+Defines the storage contract used by the buffer manager.
 
----
+## Buffer & Control Layer
 
-## Buffer / Control Layer
+### buffer/state_machine.py
 
-### `buffer/state_machine.py`
-Defines the **logical state machine** of the module.
+Formal state model:
 
-Responsibilities:
-- Define valid states:
-  - `ONLINE`
-  - `OFFLINE`
-  - `SYNC`
-- Validate legal state transitions
-- Prevent illegal or unsafe transitions
+| State   | Meaning               |
+| ------- | --------------------- |
+| ONLINE  | Network available     |
+| OFFLINE | Network failure       |
+| SYNC    | Syncing buffered data |
 
-This file represents the formal behavioral model described in the LLD.
+Prevents illegal transitions.
 
----
+### buffer/buffer_manager.py
 
-### `buffer/buffer_manager.py`
-Core orchestration component of the module.
+Core orchestration engine:
 
-Responsibilities:
-- Accept incoming events (`ingest`)
-- Decide between immediate send vs. local persistence
-- Manage ONLINE / OFFLINE / SYNC transitions
-- Control the background synchronization process
-- Guarantee FIFO ordering and ACK-based deletion
-- Ensure only **one active sync process** at a time
-
-This is the central coordination unit of the Edge buffering logic.
-
----
+- Accepts events (ingest)
+- Sends immediately if ONLINE
+- Buffers if OFFLINE
+- Performs FIFO sync
+- Guarantees only one sync at a time
+- Uses ACK-based deletion
 
 ## Network Layer
 
-### `network/network_client.py`
-Defines the **network client interface**.
+### network/network_client.py
 
-Responsibilities:
-- Abstract event transmission to the backend
-- Return ACK / failure responses
-- Act as an external dependency (not part of buffering logic)
+Interface for backend communication.
 
-This abstraction allows the module to be tested without a real backend.
+### network/mock_network_client.py
 
----
+Mock implementation used for:
 
-### `network/mock_network_client.py`
-Mock implementation of `NetworkClient`.
+- Offline simulation
+- Recovery testing
+- CLI demo
 
-Responsibilities:
-- Simulate network success and failure scenarios
-- Enable offline / recovery testing
-- Support demonstration and unit testing
+## CLI Demo
+The project includes a runnable demo tool:
+scripts/demo_cli.py
+This simulates the system behavior end-to-end.
 
-Used for validation and demo purposes only.
+Example Flow:
+PYTHONPATH=src python scripts/demo_cli.py ingest --value 42 --offline
+PYTHONPATH=src python scripts/demo_cli.py status
+PYTHONPATH=src python scripts/demo_cli.py sync
+PYTHONPATH=src python scripts/demo_cli.py status
 
----
+Expected behavior:
 
-## Utilities
-
-### `utils/hashing.py`
-Provides hashing utilities.
-
-Responsibilities:
-- Generate SHA-256 checksums for events
-- Support integrity validation
-- Keep cryptographic helpers out of core logic
-
----
-
-## Notes
-
-- Files such as `buffer.jsonl.enc`, `cursor.txt`, and `cursor.tmp`
-  are **runtime artifacts** and are **not created manually**.
-- Cache files, virtual environments, and compiled artifacts
-  should not be committed to version control.
-- This structure follows the approved Low-Level Design
-  and supports unit testing, recovery, and offline simulation.
-
----
-
-## Purpose of This Implementation
-
-This module demonstrates:
-- Offline-first design
-- Reliable persistence under failure
-- Clear separation of concerns
-- Direct traceability to SRS and LLD requirements
-
-The implementation focuses on **correct architecture and behavior**,  
-not on full production deployment.
+1. Event is buffered when offline
+2. Pending count increases
+3. Sync sends events
+4. Pending count returns to zero
 
 ## Testing
 
-Basic unit and contract tests are implemented using pytest to validate core behaviors
-defined in the Low-Level Design, such as event integrity, hashing consistency,
-and correct serialization.
+The project follows TDD.
+All core behaviors are verified by automated tests.
 
+Run all tests: PYTHONPATH=src pytest -v
 
-To run tests:
-PYTHONPATH=src pytest
+Test coverage includes:
+- Event integrity & hashing
+- Storage FIFO + ACK logic
+- Crash recovery
+- State machine correctness
+- Buffer orchestration logic
+- Quarantine of corrupted records
+- Priority-based eviction
+- Encryption behavior
 
-Run only storage contract tests:
-PYTHONPATH=src pytest -v tests/test_storage_contract.py
+## Security
 
+- AES-256 encryption at rest
+- No hardcoded secrets
+- Key injected via environment variable
+- Integrity validation using SHA-256 hashes
 
+## System Capabilities
+
+| Feature                 | Status |
+| ----------------------- | ------ |
+| Offline-first design    | ✔      |
+| Crash-safe persistence  | ✔      |
+| FIFO ordering           | ✔      |
+| ACK-based deletion      | ✔      |
+| Storage pressure policy | ✔      |
+| Corruption tolerance    | ✔      |
+| Encrypted storage       | ✔      |
+| Full orchestration      | ✔      |
+| Runnable demo           | ✔      |
+| Test coverage           | ✔      |
+
+## Notes
+- Files like buffer.jsonl, cursor.txt, and quarantine.jsonl are runtime artifacts.
+- No UI is required — this is a backend infrastructure module.
+- CLI acts as system runner.
+- Architecture directly traces to the approved LLD.
+
+## Status
+- LLD fully implemented
+- System validated by tests
+- End-to-end demo runnable
+
+## Demo- How to Run the System
+
+This module includes a runnable CLI that demonstrates the full system behavior.
+
+### Step 1– Verify system integrity
+
+PYTHONPATH=src pytest -v
+
+All tests should pass, confirming correct implementation of:
+
+- Event integrity
+- Storage FIFO logic
+- Crash recovery
+- State machine behavior
+- Buffer synchronization
+- Quarantine handling
+- Priority-based eviction
+
+### Step 2- Ingest event while offline
+
+PYTHONPATH=src python scripts/demo_cli.py ingest --value 42 --offline
+
+The event is buffered locally instead of being sent.
+
+### Step 3- Check buffer status
+
+PYTHONPATH=src python scripts/demo_cli.py status
+
+You should see pending events in the local buffer.
+
+### Step 4- Perform synchronization
+
+PYTHONPATH=src python scripts/demo_cli.py sync
+
+Buffered events are sent in FIFO order.
+
+### Step 5- Verify buffer is empty
+PYTHONPATH=src python scripts/demo_cli.py status
+
+Pending events should now be zero.
+
+## What This Demonstrates?
+
+- Offline-first behavior
+- Reliable local persistence
+- FIFO synchronization
+- ACK-based deletion
+- Recovery flow
+- End-to-end system orchestration
