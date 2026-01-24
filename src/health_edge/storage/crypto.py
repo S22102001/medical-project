@@ -28,9 +28,9 @@ def load_key_from_env() -> bytes | None:
         raise ValueError(f"{ENV_KEY_NAME} must decode to 32 bytes (got {len(key)})")
     return key
 
-def generate_key_b64()-> str:
+def generate_key_b64() -> str:
     # helper for dev: generate a fresh 32 byte key and return base64 string
-    return base64.b64decode(os.urandom(32)).decode("ascii")
+    return base64.b64encode(os.urandom(32)).decode("ascii")
 
 @dataclass(frozen=True, slots= True)
 class EncryptedBlob:

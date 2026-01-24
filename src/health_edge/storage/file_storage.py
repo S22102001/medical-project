@@ -152,9 +152,57 @@ class FileStorage(StorageHandler):
     def has_pending(self) -> bool:
         return self._read_cursor() < self._line_count()
 
-    def evict_low_priority(self, *, target_free_bytes: int) -> int:
+    def evict_low_priority(self, *, target_bytes: int) -> int:
         # best-effort MVP: not implemented yet (LLD item -> next step)
-        return 0
+        if target_bytes <= 0:
+             return 0
+
+        before_size = self._buffer_path.stat().st_size
+        cursor = self._read_cursor()
+        lines = self._buffer_path.read_text(encoding="utf-8").splitlines()
+
+        acked_lines = lines[:cursor]
+        pending_lines = lines[cursor:]
+
+        # Parse events + priority
+        parsed: list[tuple[int, int, str]] = []  # (priority, idx_in_pending, raw_line)
+        for idx, line in enumerate(pending_lines):
+            try:
+                ev = self._deserialize_event_line(line)
+                pr = int(getattr(ev, "priority", 9999))
+                parsed.append((pr, idx, line))
+            except Exception as e:
+                # corrupted: quarantine and treat as very low importance (removable)
+                self._quarantine(cursor + idx, line, f"Corrupted during eviction: {type(e).__name__}: {e}")
+                parsed.append((9999, idx, line))
+
+        # candidates to evict: only priority > 1
+        candidates = [(pr, idx, line) for (pr, idx, line) in parsed if pr > 1]
+
+        # remove lowest importance first: highest priority number first
+        # stable for same priority: smaller idx first
+        candidates.sort(key=lambda t: (-t[0], t[1]))
+
+        to_remove: set[int] = set()
+        freed_est = 0
+
+        for pr, idx, line in candidates:
+            if freed_est >= target_bytes:
+                break
+            to_remove.add(idx)
+            freed_est += len(line.encode("utf-8")) + 1
+
+        # rewrite file preserving FIFO of retained lines
+        new_pending = [line for i, line in enumerate(pending_lines) if i not in to_remove]
+        new_lines = acked_lines + new_pending
+
+        tmp_path = self._buffer_path.with_suffix(self._buffer_path.suffix + ".tmp")
+        tmp_path.write_text("\n".join(new_lines) + ("\n" if new_lines else ""), encoding="utf-8")
+        os.replace(tmp_path, self._buffer_path)
+
+        after_size = self._buffer_path.stat().st_size
+        return max(0, before_size - after_size)
+
 
     def get_stats(self) -> StorageStats:
         total = self._line_count()
