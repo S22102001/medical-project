@@ -1,5 +1,7 @@
 # Smart Healthcare Monitoring Platform
 
+all the commands shouls run after: source venv/bin/activate
+
 ## Edge Module – Local Data Cache & Offline Buffer
 
 This repository contains the full Edge-side implementation of the
